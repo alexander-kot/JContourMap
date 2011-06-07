@@ -1,5 +1,6 @@
 package ru.eleron.terrain.jContourMap;
 
+import java.awt.geom.Point2D.Double;
 import java.util.List;
 
 interface Contour {
@@ -35,6 +36,14 @@ interface Contour {
      * является ли контур дыркой?
      */
     boolean isGap();
+
+//! Может быть стоит добавить.
+    int getHIndex();
+
+    void setHIndex(int hIndex);
+
+
+
 
     /**
      * пересекаются ли контуры?

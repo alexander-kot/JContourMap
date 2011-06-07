@@ -27,7 +27,7 @@ interface MapInterpolator {
      */
     void addContour(int hIndex, Contour contour)
             throws ContourIntersectionException;
-
+    //! если по хорошему, то пересечение контуров я не найду раньше растеризации.
 
     /**
      * Вычислить значения высоты в каждом узле решетки
