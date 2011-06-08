@@ -5,7 +5,6 @@ import java.awt.geom.Rectangle2D;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.ListIterator;
 
 public class MapInterpolatorClass implements MapInterpolator{
     private double[] heights;
@@ -13,7 +12,7 @@ public class MapInterpolatorClass implements MapInterpolator{
 
     public void setHeights(double[] heights) throws IllegalStateException{
         if  (this.heights.length <= heights.length){
-            this.heights = heights;
+            this.heights = heights.clone();
         }else{
             throw new IllegalStateException();
         }
@@ -21,10 +20,7 @@ public class MapInterpolatorClass implements MapInterpolator{
 
 
     public double[] getHeights(){
-        //! попытка вернуть массив по значению
-        double[] out = new double[heights.length];
-        System.arraycopy(heights, 0, out, 0, heights.length);
-        return out;
+        return heights.clone();
     }
 
 
@@ -35,6 +31,24 @@ public class MapInterpolatorClass implements MapInterpolator{
     }
 
 
+    private Double nearestEdge( Double p, Rectangle2D bounds){
+        return new Double( ((p.getX()-bounds.getMinX()-bounds.getWidth()/2  >0)? bounds.getMaxX(): bounds.getMinX()),
+                           ((p.getY()-bounds.getMinY()-bounds.getHeight()/2 >0)? bounds.getMaxY(): bounds.getMinY()));
+    }
+
+
+    private int[] spline(double a, double b, double c, double d, long n){
+        int[] x = new int[n];
+        double t;
+        for (int i = 0; i<n; i++){
+            t = i/n;
+            x[i] = (int) Math.round(0.5*( 2*b +t*( -a +c +t*( 2*a -5*b +4*c -d + t*(  -a +3*b -3*c +d)))));
+        }
+        return x;
+
+    }
+
+
     public void buildMap(double[][] heightMap, Rectangle2D bounds)
             throws InvalidContourConfigurationException{
         // TODO. Оптимизация? Дерево вложенности.
@@ -42,48 +56,45 @@ public class MapInterpolatorClass implements MapInterpolator{
         // TODO. Если контур не замкнут и дырка то поведение программы непредсказуемо.
 
         Arrays.fill(heightMap, java.lang.Double.NEGATIVE_INFINITY);
-        ListIterator<Contour> iterator = contours.listIterator();
-        Contour contour;
 
-        while (iterator.hasNext()){
-            contour = iterator.next();
+        for (Contour contour : contours){
             if (contour.isGap()) continue;
-            Double[] points;
-            Double[] pointsArray = (Double[])contour.getPoints().toArray();
+            List<Double> points = contour.getPoints();
             if (contour.isClosed()){
-                points = Arrays.copyOfRange(pointsArray, 0, pointsArray.length+3,Double[].class);
-                points[ pointsArray.length+1] = pointsArray[0];
-                points[ pointsArray.length+2] = pointsArray[1];
-                points[ pointsArray.length+3] = pointsArray[2];
+                points.add( points.get(0));
+                points.add( points.get(1));
+                points.add( points.get(2));
             }else{
-                //! не получается так изящно как выше
-                //!Warning Manual array copy
-                points = new Double[pointsArray.length+2];
-                points[0]=pointsArray[0];
-                for(int i=0;i<=pointsArray.length;i++){points[i+1] = pointsArray[i];}
-                points[pointsArray.length+1]=pointsArray[pointsArray.length];
-            }
-            for (int index = 0; index< points.length-3; index++){
-                // TODO. Место для всяческих оптимизаций с предвычислениями
-                long n = 2*Math.round(Math.abs(points[index+1].x-points[index+2].x)+
-                                   Math.abs(points[index+1].y-points[index+2].y));
-                for (double T = 0; T<=n; T++){
-                    double t = T/n;
-                    int X = (int) Math.round(
-                               0.5 * ((                   2*points[index+1].x) +
-                                 t * (( -points[index].x                        +points[index+2].x) +
-                             t * t * ((2*points[index].x -5*points[index+1].x +4*points[index+2].x -points[index+3].x) +
-                         t * t * t * (  -points[index].x +3*points[index+1].x -3*points[index+2].x +points[index+3].x)))));
-                    int Y = (int) Math.abs(
-                               0.5 * ((                   2*points[index+1].y) +
-                                 t * (( -points[index].y                        +points[index+2].y) +
-                             t * t * ((2*points[index].y -5*points[index+1].y +4*points[index+2].y -points[index+3].y) +
-                         t * t * t * (  -points[index].y +3*points[index+1].y -3*points[index+2].y +points[index+3].y)))));
+                //! Попробую обойти проблемы, дотянув все незамкнутые контуры напрямик к краям
 
-                    if (heightMap[X][Y] == java.lang.Double.NEGATIVE_INFINITY)
-                       heightMap[X][Y] = heights[contour.getHIndex()];
+                if (bounds.contains(points.get( 0))){
+                    points.add( 0, nearestEdge(points.get(0), bounds));
+                }
+                points.add( 0, points.get(0));
+
+                if (bounds.contains(points.get( points.size()-1))){
+                    points.add( nearestEdge(points.get( points.size()-1), bounds));
+                }
+                points.add( points.get( points.size()-1));
+            }
+
+
+            for (int i = 0; i < points.size()-3; i++){
+                // TODO. Место для всяческих оптимизаций с предвычислениями
+                //! количество промежуточных точек
+                long n = 2*Math.round(Math.abs(points.get(i+1).getX()-points.get(i+2).getX())+
+                                   Math.abs(points.get(i+1).getY()-points.get(i+2).getY()));
+
+                int[] X = spline( points.get(i  ).getX(), points.get(i+1).getX(),
+                                  points.get(i+2).getX(), points.get(i+3).getX(), n);
+                int[] Y = spline( points.get(i  ).getY(), points.get(i+1).getY(),
+                                  points.get(i+2).getY(), points.get(i+3).getY(), n);
+
+                for (int t = 0; t<n; t++){
+                    if (heightMap[X[t]][Y[t]] == java.lang.Double.NEGATIVE_INFINITY)
+                       heightMap[X[t]][Y[t]] = heights[contour.getHIndex()];
                     else
-                        if (heightMap[X][Y] == heights[contour.getHIndex()]){}
+                        if (heightMap[X[t]][Y[t]] == heights[contour.getHIndex()]){}
                         else throw new InvalidContourConfigurationException();
                 }
             }

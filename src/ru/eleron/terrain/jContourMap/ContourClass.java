@@ -21,9 +21,18 @@ public class ContourClass implements Contour {
         this.isGap = isGap;
         this.hIndex = hIndex;
 
-        for(int i=0; i<=points.length; i++){
-            this.appendPoint(points[i]);
+        for (Double point : points) {
+            this.appendPoint(point);
         }
+    }
+
+    private boolean segmentsIntersect(Double start1, Double end1, Double start2, Double end2){
+        double v1,v2,v3,v4;
+        v1 = (end2.getX()-start2.getX())*(start1.getY()-start2.getY())-(end2.getY()-start2.getY())*(start1.getX()-start2.getX());
+        v2 = (end2.getX()-start2.getX())*(  end1.getY()-start2.getY())-(end2.getY()-start2.getY())*(  end1.getX()-start2.getX());
+        v3 = (end1.getX()-start1.getX())*(start2.getY()-start1.getY())-(end1.getY()-start1.getY())*(start2.getX()-start1.getX());
+        v4 = (end1.getX()-start1.getX())*(  end2.getY()-start1.getY())-(end1.getY()-start1.getY())*(  end2.getX()-start1.getX());
+        return ((v1*v2<0) & (v3*v4<0));
     }
 
     public void appendPoint(Double p) throws SelfIntersectionException{
@@ -35,7 +44,6 @@ public class ContourClass implements Contour {
         Iterator it = points.iterator();
         boolean intersection = false;
         Double S1, T1, S2, T2;
-        double v1,v2,v3,v4;
 
         S2 =  points.get(points.size()-1); // последний
         T2 = p;
@@ -44,18 +52,8 @@ public class ContourClass implements Contour {
         while (it.hasNext()){
             S1 = T1;
             T1 = (Double)it.next();
-
-            // проверка пересечение отрезков с помощью векторного произведения
-            //! неверно обработывает пересечение в конечных точках
-            v1 = (T2.getX()-S2.getX())*(S1.getY()-S2.getY())-(T2.getY()-S2.getY())*(S1.getX()-S2.getX());
-            v2 = (T2.getX()-S2.getX())*(T1.getY()-S2.getY())-(T2.getY()-S2.getY())*(T1.getX()-S2.getX());
-            v3 = (T1.getX()-S1.getX())*(S2.getY()-S1.getY())-(T1.getY()-S1.getY())*(S2.getX()-S1.getX());
-            v4 = (T1.getX()-S1.getX())*(T2.getY()-S1.getY())-(T1.getY()-S1.getY())*(T2.getX()-S1.getX());
-            intersection = intersection | ((v1*v2<0) & (v3*v4<0));
-
-            if (intersection)
-                throw new SelfIntersectionException();
-
+            intersection = intersection | segmentsIntersect( S1, T1, S2, T2);
+            if (intersection) throw new SelfIntersectionException();
         }
         points.add(p);
     }
